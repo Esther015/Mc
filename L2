@@ -1,0 +1,85 @@
+#include <iostream>
+#include <cmath>
+#include <limits>
+#include <algorithm>
+
+const double EPS = std::numeric_limits<double>::epsilon();
+const double SCALE_FACTOR = 1e30; // pour éviter l'overflow
+
+void solveQuadratic(double a, double b, double c) {
+    // Cas particuliers
+    if (std::fabs(a) < EPS && std::fabs(b) < EPS) {
+        if (std::fabs(c) < EPS)
+            std::cout << "Tout complexe x satisfait l'équation.\n";
+        else
+            std::cout << "Aucun complexe x ne satisfait l'équation.\n";
+        return;
+    }
+
+    if (std::fabs(a) < EPS) { // Équation linéaire bx + c = 0
+        if (std::fabs(b) < EPS) return; // déjà traité
+        double x = -c / b;
+        std::cout << "Racine unique (linéaire) : " << x << "\n";
+        return;
+    }
+
+    // Scaling pour éviter l'overflow
+    double maxCoeff = std::max({std::fabs(a), std::fabs(b), std::fabs(c)});
+    if (maxCoeff > SCALE_FACTOR) {
+        a /= SCALE_FACTOR;
+        b /= SCALE_FACTOR;
+        c /= SCALE_FACTOR;
+        std::cout << "(Scaling appliqué pour éviter l'overflow)\n";
+    }
+
+    double discriminant = b * b - 4.0 * a * c;
+
+    if (discriminant < 0) {
+        double real = -b / (2.0 * a);
+        double imag = std::sqrt(-discriminant) / (2.0 * a);
+        std::cout << "Racines complexes :\n";
+        std::cout << "x1 = " << real << " + " << imag << "i\n";
+        std::cout << "x2 = " << real << " - " << imag << "i\n";
+        return;
+    }
+
+    // Calcul stable des racines réelles
+    double sqrtD = std::sqrt(discriminant);
+    double x1, x2;
+
+    if (b >= 0) {
+        x1 = (-b - sqrtD) / (2.0 * a);
+        x2 = (2.0 * c) / (-b - sqrtD);
+    } else {
+        x1 = (-b + sqrtD) / (2.0 * a);
+        x2 = (2.0 * c) / (-b + sqrtD);
+    }
+
+    // Pour garantir l'ordre |x1| <= |x2| si souhaité
+    if (std::fabs(x1) > std::fabs(x2)) std::swap(x1, x2);
+
+    std::cout << "Racines réelles :\n";
+    std::cout.precision(12);
+    std::cout << "x1 = " << x1 << "\n";
+    std::cout << "x2 = " << x2 << "\n";
+}
+
+int main() {
+    // Exemples du document
+    std::cout << "Cas 1 (a=1, b=-100000, c=1) :\n";
+    solveQuadratic(1, -100000, 1); // devrait donner x1~1e-5, x2~1e5
+
+    std::cout << "\nCas 2 (a=6, b=5, c=-4) :\n";
+    solveQuadratic(6, 5, -4);
+
+    std::cout << "\nCas 3 (a=6e30, b=5e30, c=-4e30) :\n";
+    solveQuadratic(6e30, 5e30, -4e30);
+
+    std::cout << "\nCas 4 (a=1e-30, b=-1e-30, c=1e-30) :\n";
+    solveQuadratic(1e-30, -1e-30, 1e-30);
+
+    std::cout << "\nCas 5 (a=1, b=-4, c=3.9999999) :\n";
+    solveQuadratic(1, -4, 3.9999999);
+
+    return 0;
+}
