@@ -1,0 +1,283 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <chrono>
+
+using namespace std;
+
+class SLAESolver {
+private:
+    vector<vector<double>> A;  // Matrice des coefficients
+    vector<double> b;          // Vecteur des constantes
+    int n;                     // Taille du système
+    
+public:
+    // Constructeur
+    SLAESolver(vector<vector<double>> matrix, vector<double> constants) 
+        : A(matrix), b(constants) {
+        n = A.size();
+    }
+    
+    // Calcul de la norme du résidu
+    double computeNorm(const vector<double>& x) {
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            double residual = b[i];
+            for (int j = 0; j < n; j++) {
+                residual -= A[i][j] * x[j];
+            }
+            sum += residual * residual;
+        }
+        return sqrt(sum);
+    }
+    
+    // Méthode de Jacobi
+    pair<vector<double>, vector<double>> jacobiMethod(vector<double> x0, 
+                                                       double tolerance = 1e-6,
+                                                       int maxIterations = 1000) {
+        vector<double> x = x0;
+        vector<double> x_new(n, 0);
+        vector<double> residuals;
+        
+        for (int iter = 0; iter < maxIterations; iter++) {
+            // Calcul de la nouvelle approximation
+            for (int i = 0; i < n; i++) {
+                double sum = 0;
+                for (int j = 0; j < n; j++) {
+                    if (j != i) {
+                        sum += A[i][j] * x[j];
+                    }
+                }
+                x_new[i] = (b[i] - sum) / A[i][i];
+            }
+            
+            // Calcul de la norme du résidu
+            double norm = computeNorm(x_new);
+            residuals.push_back(norm);
+            
+            // Vérification de la convergence
+            if (norm < tolerance) {
+                cout << "Méthode de Jacobi a convergé après " << iter + 1 
+                     << " itérations" << endl;
+                return {x_new, residuals};
+            }
+            
+            x = x_new;
+        }
+        
+        cout << "Méthode de Jacobi: nombre maximum d'itérations atteint" << endl;
+        return {x, residuals};
+    }
+    
+    // Méthode de Gauss-Seidel
+    pair<vector<double>, vector<double>> gaussSeidelMethod(vector<double> x0,
+                                                            double tolerance = 1e-6,
+                                                            int maxIterations = 1000) {
+        vector<double> x = x0;
+        vector<double> residuals;
+        
+        for (int iter = 0; iter < maxIterations; iter++) {
+            vector<double> x_old = x;
+            
+            // Calcul de la nouvelle approximation (mise à jour en place)
+            for (int i = 0; i < n; i++) {
+                double sum1 = 0, sum2 = 0;
+                for (int j = 0; j < i; j++) {
+                    sum1 += A[i][j] * x[j];
+                }
+                for (int j = i + 1; j < n; j++) {
+                    sum2 += A[i][j] * x_old[j];
+                }
+                x[i] = (b[i] - sum1 - sum2) / A[i][i];
+            }
+            
+            // Calcul de la norme du résidu
+            double norm = computeNorm(x);
+            residuals.push_back(norm);
+            
+            // Vérification de la convergence
+            if (norm < tolerance) {
+                cout << "Méthode de Gauss-Seidel a convergé après " << iter + 1 
+                     << " itérations" << endl;
+                return {x, residuals};
+            }
+        }
+        
+        cout << "Méthode de Gauss-Seidel: nombre maximum d'itérations atteint" << endl;
+        return {x, residuals};
+    }
+    
+    // Affichage de la solution
+    void printSolution(const vector<double>& x, const string& methodName) {
+        cout << "\n" << methodName << " - Solution:" << endl;
+        for (int i = 0; i < n; i++) {
+            cout << "x[" << i << "] = " << fixed << setprecision(8) << x[i] << endl;
+        }
+    }
+    
+    // Exportation des données pour le graphique (fichier CSV)
+    void exportToCSV(const vector<double>& residualsJacobi, 
+                    const vector<double>& residualsGS,
+                    const string& filename = "residuals.csv") {
+        ofstream file(filename);
+        if (!file.is_open()) {
+            cerr << "Erreur: impossible d'ouvrir le fichier " << filename << endl;
+            return;
+        }
+        
+        file << "Iteration,Jacobi,GaussSeidel\n";
+        int maxSize = max(residualsJacobi.size(), residualsGS.size());
+        
+        for (int i = 0; i < maxSize; i++) {
+            file << i + 1 << ",";
+            if (i < residualsJacobi.size())
+                file << residualsJacobi[i];
+            else
+                file << "";
+            
+            file << ",";
+            
+            if (i < residualsGS.size())
+                file << residualsGS[i];
+            else
+                file << "";
+            
+            file << "\n";
+        }
+        
+        file.close();
+        cout << "\nDonnées exportées vers " << filename << endl;
+    }
+};
+
+// Fonction pour générer un système test (matrice diagonale dominante)
+SLAESolver createTestSystem(int size) {
+    vector<vector<double>> A(size, vector<double>(size, 0));
+    vector<double> b(size, 0);
+    
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            if (i == j) {
+                A[i][j] = 10.0;  // Élément diagonal dominant
+            } else {
+                A[i][j] = 1.0;
+            }
+        }
+        b[i] = 10.0 * (i + 1);
+    }
+    
+    return SLAESolver(A, b);
+}
+
+// Fonction pour créer un système personnalisé
+SLAESolver createCustomSystem() {
+    // Exemple : Système 3x3
+    // 4x + y + z = 7
+    // x + 5y + 2z = 9
+    // 2x + y + 6z = 10
+    
+    vector<vector<double>> A = {
+        {4, 1, 1},
+        {1, 5, 2},
+        {2, 1, 6}
+    };
+    
+    vector<double> b = {7, 9, 10};
+    
+    return SLAESolver(A, b);
+}
+
+int main() {
+    cout << "=== RÉSOLUTION DE SLAE PAR MÉTHODES ITÉRATIVES ===" << endl;
+    cout << "Méthodes: Jacobi et Gauss-Seidel\n" << endl;
+    
+    // Choix du système
+    int choice;
+    cout << "Choisissez le système à résoudre:" << endl;
+    cout << "1. Système test (diagonal dominant, taille 4)" << endl;
+    cout << "2. Système personnalisé (3 équations)" << endl;
+    cout << "3. Système défini par l'utilisateur" << endl;
+    cout << "Votre choix: ";
+    cin >> choice;
+    
+    SLAESolver solver = createTestSystem(4);
+    
+    if (choice == 2) {
+        solver = createCustomSystem();
+    } else if (choice == 3) {
+        int size;
+        cout << "Entrez la taille du système: ";
+        cin >> size;
+        
+        vector<vector<double>> A(size, vector<double>(size));
+        vector<double> b(size);
+        
+        cout << "Entrez la matrice A (" << size << "x" << size << "):" << endl;
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                cout << "A[" << i << "][" << j << "] = ";
+                cin >> A[i][j];
+            }
+        }
+        
+        cout << "Entrez le vecteur b:" << endl;
+        for (int i = 0; i < size; i++) {
+            cout << "b[" << i << "] = ";
+            cin >> b[i];
+        }
+        
+        solver = SLAESolver(A, b);
+    }
+    
+    // Test avec différentes conditions initiales
+    vector<vector<double>> initialGuesses = {
+        {0, 0, 0, 0},        // Approximation nulle
+        {1, 1, 1, 1},        // Approximation unitaire
+        {10, 10, 10, 10}     // Approximation éloignée
+    };
+    
+    cout << "\n" << string(50, '=') << endl;
+    
+    // Pour chaque condition initiale
+    for (int k = 0; k < initialGuesses.size(); k++) {
+        if (choice == 2 && k > 0) break; // Pour système 3x3, adapter
+        
+        vector<double> x0;
+        if (choice == 2) {
+            x0 = {0, 0, 0};
+            if (k == 1) x0 = {1, 1, 1};
+            if (k == 2) x0 = {10, 10, 10};
+        } else {
+            x0 = initialGuesses[k];
+        }
+        
+        cout << "\n--- Approximation initiale: ";
+        for (double val : x0) cout << val << " ";
+        cout << "---" << endl;
+        
+        // Méthode de Jacobi
+        auto [solutionJacobi, residualsJacobi] = solver.jacobiMethod(x0);
+        solver.printSolution(solutionJacobi, "Jacobi");
+        cout << "Norme finale du résidu: " << residualsJacobi.back() << endl;
+        
+        // Méthode de Gauss-Seidel
+        auto [solutionGS, residualsGS] = solver.gaussSeidelMethod(x0);
+        solver.printSolution(solutionGS, "Gauss-Seidel");
+        cout << "Norme finale du résidu: " << residualsGS.back() << endl;
+        
+        // Exportation des données pour graphique
+        string filename = "residuals_init" + to_string(k) + ".csv";
+        solver.exportToCSV(residualsJacobi, residualsGS, filename);
+        
+        cout << string(50, '-') << endl;
+    }
+    
+    cout << "\nPour visualiser les graphiques:" << endl;
+    cout << "1. Ouvrez les fichiers CSV générés dans Excel/Google Sheets" << endl;
+    cout << "2. Créez un graphique avec l'itération en abscisse et le résidu en ordonnée" << endl;
+    cout << "3. Utilisez une échelle logarithmique pour mieux visualiser la convergence" << endl;
+    
+    return 0;
+}
