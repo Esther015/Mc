@@ -1,0 +1,21 @@
+1
+import psycopg2
+
+conn = psycopg2.connect(
+    database="testdb",
+    user="postgres",
+    password="postpass",
+    host="127.0.0.1",
+    port="5432"
+)
+cur = conn.cursor()
+
+cur.execute("SELECT * FROM employees")
+rows = cur.fetchall()
+
+# Afficher les lignes 5 à 10 (index 4 à 9)
+for row in rows[4:10]:
+    print(row)
+
+cur.close()
+conn.close()
